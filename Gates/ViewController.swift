@@ -20,6 +20,8 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     var theNode: SCNNode!
     var theCamera: SCNNode!
     
+    private var isFaceDetected = false
+    
     // Önceki yüz merkez koordinatları
     var previousFaceCenter: CGPoint?
 
@@ -60,27 +62,6 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         theNode = scene.rootNode.childNode(withName: "Thenode", recursively: true)!
         theCamera = scene.rootNode.childNode(withName: "Thecamera", recursively: true)!
 
-    }
-    
-    func smoothFaceCenter(newFaceCenter: CGPoint) -> CGPoint {
-        // Eğer önceki yüz merkez koordinatları yoksa, ilk merkez koordinatını döndür
-        guard let previousCenter = previousFaceCenter else {
-            previousFaceCenter = newFaceCenter
-            return newFaceCenter
-            print("hi man")
-        }
-
-        // Düzgünleştirilmiş yüz merkez koordinatları hesapla
-        let smoothedX = previousCenter.x + (newFaceCenter.x - previousCenter.x) * smoothingFactor
-        let smoothedY = previousCenter.y + (newFaceCenter.y - previousCenter.y) * smoothingFactor
-
-        // Yeni düzgünleştirilmiş yüz merkez koordinatları
-        let smoothedFaceCenter = CGPoint(x: smoothedX, y: smoothedY)
-
-        // Önceki yüz merkez koordinatlarını güncelle
-        previousFaceCenter = smoothedFaceCenter
-
-        return smoothedFaceCenter
     }
     
 
@@ -140,7 +121,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 
     private func detectFace(image: CVPixelBuffer) {
         let faceDetectionRequest = VNDetectFaceLandmarksRequest { vnRequest, error in
-            DispatchQueue.main.async {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 if let results = vnRequest.results as? [VNFaceObservation], results.count > 0 {
                     // print("✅ Detected \(results.count) faces!")
                     self.handleFaceDetectionResults(observedFaces: results)
@@ -154,6 +135,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
         let imageResultHandler = VNImageRequestHandler(cvPixelBuffer: image, orientation: .leftMirrored, options: [:])
         try? imageResultHandler.perform([faceDetectionRequest])
     }
+    
 
     private func handleFaceDetectionResults(observedFaces: [VNFaceObservation]) {
         clearDrawings()
@@ -177,9 +159,6 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             // Yüz kutusunun merkezi
             let faceCenter = CGPoint(x: faceBoundingBoxOnScreen.midX, y: faceBoundingBoxOnScreen.midY)
             
-            let smoothedFaceCenter = smoothFaceCenter(newFaceCenter: faceCenter)
-            
-            smoothFaceCenter(newFaceCenter: smoothedFaceCenter)
 
 
             // X ve Y uzaklıklarını hesapla
@@ -215,7 +194,10 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 
             // Yeni alan derinliğini hesapla ve kameranın görüş açısını ayarla
             let newFieldOfView = calculateFieldOfView(boundingBoxWidth: boundingBoxWidth, boundingBoxHeight: boundingBoxHeight)
-            theCamera.camera?.fieldOfView = newFieldOfView
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                // Kamera alan derinliğini ayarlayın
+                self.theCamera.camera?.fieldOfView = newFieldOfView
+            }
         }
     }
 
