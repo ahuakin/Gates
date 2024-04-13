@@ -21,7 +21,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     let cameraNode = SCNNode()
     var theNode: SCNNode!
     var theCamera: SCNNode!
-    var sphereNode
+    var sphereNode = SCNNode()
     
     private var isFaceDetected = false
     
@@ -64,6 +64,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 
         theNode = scene.rootNode.childNode(withName: "Thenode", recursively: true)!
         theCamera = scene.rootNode.childNode(withName: "Thecamera", recursively: true)!
+        sphereNode = scene.rootNode.childNode(withName: "Sphere", recursively: true)!
 
     }
     
@@ -187,12 +188,22 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
                 let newFieldOfView = scaleFactor * 25
 
                 // Eğer fov değişikliği belirli bir eşik değerinden fazlaysa, yeni değeri kabul et
-                let fovChangeThreshold: CGFloat = 1
+                let fovChangeThreshold: CGFloat = 5
                 let currentFieldOfView = self.theCamera.camera?.fieldOfView ?? 0
                 let fovChange = abs(newFieldOfView - currentFieldOfView)
                 if fovChange > fovChangeThreshold {
-                    // Kamera alan derinliğini ayarlayın
-                    self.theCamera.camera?.fieldOfView = newFieldOfView
+                    // Yeni fov değerini belirleyin (önemli not: animasyon işlemi için kullanacağımız değeri burada tanımlayacağız)
+                    let newFovValue = newFieldOfView * 0.9
+
+                    // Animasyon süresi
+                    let animationDuration: TimeInterval = 0.1 // İsteğe bağlı olarak süreyi ayarlayabilirsiniz
+
+                    // Animasyonlu geçiş
+                    SCNTransaction.begin()
+                    SCNTransaction.animationDuration = animationDuration // Animasyon süresini ayarlayın
+                    SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: CAMediaTimingFunctionName.easeInEaseOut) // Animasyon eğrisini belirleyin (opsiyonel)
+                    self.theCamera.camera?.fieldOfView = newFovValue // Kamera alan derinliğini yeni değere animasyonlu olarak ayarlayın
+                    SCNTransaction.commit()
                 }
             }
 
