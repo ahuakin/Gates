@@ -16,9 +16,12 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
     @IBOutlet weak var mars: UIImageView!
     @IBOutlet var sceneView: SCNView!
     var scene: SCNScene!
+    var greenBoxFrame: CGRect = CGRect(x: 0, y: 0, width: 100, height: 100) // Örnek bir CGRect değeri, gerektiğinde değiştirin
+
     let cameraNode = SCNNode()
     var theNode: SCNNode!
     var theCamera: SCNNode!
+    var sphereNode
     
     private var isFaceDetected = false
     
@@ -121,7 +124,7 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
 
     private func detectFace(image: CVPixelBuffer) {
         let faceDetectionRequest = VNDetectFaceLandmarksRequest { vnRequest, error in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            DispatchQueue.main.asyncAfter(deadline: .now()) {
                 if let results = vnRequest.results as? [VNFaceObservation], results.count > 0 {
                     // print("✅ Detected \(results.count) faces!")
                     self.handleFaceDetectionResults(observedFaces: results)
@@ -155,10 +158,43 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
                 faceBoundingBoxOnScreen.size.width = faceBoundingBoxOnScreen.height
                 faceBoundingBoxOnScreen.size.height = tempWidth
             }
+            // Yeşil kutunun merkezi
+            let greenBoxCenter = CGPoint(x: faceBoundingBoxOnScreen.midX, y: faceBoundingBoxOnScreen.midY)
+
+            // Yeşil kutunun hareket miktarını hesapla
+            let movementX = greenBoxCenter.x - marsCenter.x
+            let movementY = greenBoxCenter.y - marsCenter.y
+
+            // Eğer yeşil kutunun hareketi belirli bir eşik değerinin altındaysa filtrele
+            let movementThreshold: CGFloat = 100 // Belirli bir eşik değeri (örneğin, 10 piksel)
+            if abs(movementX) < movementThreshold && abs(movementY) < movementThreshold {
+                return // Hareket eşik değerinin altındaysa işlem yapma
+            }
 
             // Yüz kutusunun merkezi
             let faceCenter = CGPoint(x: faceBoundingBoxOnScreen.midX, y: faceBoundingBoxOnScreen.midY)
-            
+            let sizeChangeThreshold: CGFloat = 100 // Boyut değişikliği için eşik değeri
+
+            let boundingBoxWidth = faceBoundingBoxOnScreen.size.width
+            let boundingBoxHeight = faceBoundingBoxOnScreen.size.height
+
+            let widthChange = abs(boundingBoxWidth - greenBoxFrame.width) // Genişlik değişikliği
+            let heightChange = abs(boundingBoxHeight - greenBoxFrame.height) // Yükseklik değişikliği
+
+            // Eğer boyut değişikliği belirlenen eşik değerinden küçükse, fov değişmesin
+            if widthChange < sizeChangeThreshold && heightChange < sizeChangeThreshold {
+                let scaleFactor = (boundingBoxWidth + boundingBoxHeight) / zoomThreshold
+                let newFieldOfView = scaleFactor * 25
+
+                // Eğer fov değişikliği belirli bir eşik değerinden fazlaysa, yeni değeri kabul et
+                let fovChangeThreshold: CGFloat = 1
+                let currentFieldOfView = self.theCamera.camera?.fieldOfView ?? 0
+                let fovChange = abs(newFieldOfView - currentFieldOfView)
+                if fovChange > fovChangeThreshold {
+                    // Kamera alan derinliğini ayarlayın
+                    self.theCamera.camera?.fieldOfView = newFieldOfView
+                }
+            }
 
 
             // X ve Y uzaklıklarını hesapla
@@ -187,29 +223,8 @@ class ViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDele
             // X ve Y uzaklıklarını güncelle
             previousDistanceX = distanceX
             previousDistanceY = distanceY
-
-            // Yüz kutusunun boyutunu al
-            let boundingBoxWidth = faceBoundingBoxOnScreen.size.width
-            let boundingBoxHeight = faceBoundingBoxOnScreen.size.height
-
-            // Yeni alan derinliğini hesapla ve kameranın görüş açısını ayarla
-            let newFieldOfView = calculateFieldOfView(boundingBoxWidth: boundingBoxWidth, boundingBoxHeight: boundingBoxHeight)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                // Kamera alan derinliğini ayarlayın
-                self.theCamera.camera?.fieldOfView = newFieldOfView
-            }
         }
     }
-
-    private func calculateFieldOfView(boundingBoxWidth: CGFloat, boundingBoxHeight: CGFloat) -> CGFloat {
-        // Ölçek faktörünü hesapla (genişlik ve yükseklikten)
-        let scaleFactor = (boundingBoxWidth + boundingBoxHeight) / zoomThreshold
-        // Yeni alan derinliğini hesapla
-        let newFieldOfView = scaleFactor * 25 // İsteğe bağlı bir katsayı ile çarpabilirsiniz
-        return newFieldOfView
-    }
-
-
 
     func updateCameraRotation(rotation: SCNVector3, speedFactor: Float = 500) {
         // Hız faktörünü kullanarak rotasyonu ayarla
